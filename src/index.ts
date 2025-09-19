@@ -3,8 +3,9 @@ import { Client, GatewayIntentBits, Collection, Interaction } from "discord.js";
 import { readdirSync } from "node:fs";
 import { Command } from "./handlers/commandHandler";
 import { registerCommand } from "./register";
+import { getCachedShips } from "./utils/cache";
 
-const path = require("path");
+import path = require("path");
 
 interface ExtendedClient extends Client {
     commands: Collection<string, Command>;
@@ -44,6 +45,13 @@ for (const folder of commandFolders) {
 client.once("ready", async () => {
     console.log(`${client.user?.username} is online!`);
     await registerCommand();
+    try {
+        await getCachedShips();
+
+        console.log("🚀 Data cached successfully");
+    } catch (err) {
+        console.error("❌ Failed to cache data on startup:", err);
+    }
 });
 
 client.on("interactionCreate", async (interaction: Interaction) => {
