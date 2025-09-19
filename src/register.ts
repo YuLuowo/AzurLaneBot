@@ -1,6 +1,7 @@
 import { REST, Routes } from 'discord.js';
 import { CLIENT_ID, DISCORD_TOKEN } from "./config";
 import PingCommand from "./commands/general/ping";
+import ShipCommand from "./commands/ship/ship";
 
 const clientId = CLIENT_ID;
 const discordToken: string = DISCORD_TOKEN;
@@ -12,7 +13,8 @@ interface Command {
     execute(command: Command): Promise<void>;
 }
 
-const commandFiles = [ PingCommand ];
+// Add command here qwq
+const commandFiles = [ PingCommand, ShipCommand ];
 const commands: any[] = [];
 
 for (const command of commandFiles) {
