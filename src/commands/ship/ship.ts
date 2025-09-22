@@ -1,7 +1,8 @@
 import { Command } from "../../handlers/commandHandler";
 import { SlashCommandBuilder, ChatInputCommandInteraction, AutocompleteInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ButtonInteraction } from "discord.js";
-import {getAllShips, getShipSkills} from "../../utils/api";
-import {getNationalityName, getRarityName, getShipTypeName} from "../../utils/maps";
+import { getAllShips, getShipSkills } from "../../utils/api";
+import { getNationalityName, getRarityName, getShipTypeName } from "../../utils/maps";
+import { getCachedShips } from "../../utils/cache";
 
 const ShipCommand: Command = {
     data: new SlashCommandBuilder()
@@ -12,13 +13,15 @@ const ShipCommand: Command = {
         ),
 
     async execute(interaction: ChatInputCommandInteraction) {
+        await interaction.deferReply();
+
         const shipName = interaction.options.getString("name", true);
 
-        const ships = await getAllShips();
+        const ships = await getCachedShips();
         const ship = ships.find((s) => s.name === shipName);
 
         if (!ship) {
-            await interaction.reply({ content: "找不到該艦船", ephemeral: true });
+            await interaction.editReply({ content: "找不到該艦船" });
             return;
         }
 
@@ -31,14 +34,14 @@ const ShipCommand: Command = {
                 { name: "陣營", value: getNationalityName(ship.nationality), inline: true },
                 { name: "艦種", value: getShipTypeName(ship.type), inline: true },
             )
-            .setImage(ship.painting ? `https://cdn.imagineyuluo.com/AzurLane/TW/painting/${ship.painting}.webp` : null)
+            .setImage(`https://cdn.imagineyuluo.com/AzurLane/TW/painting/${ship.painting.toLowerCase()}.webp`)
             .setFooter({ text: "AzurLane Bot" })
             .setTimestamp();
 
         const row = new ActionRowBuilder<ButtonBuilder>()
             .addComponents(
                 new ButtonBuilder()
-                    .setCustomId("skills")
+                    .setCustomId(`skills:${ship.name}`)
                     .setLabel("技能")
                     .setStyle(ButtonStyle.Primary),
                 new ButtonBuilder()
@@ -47,7 +50,7 @@ const ShipCommand: Command = {
                     .setStyle(ButtonStyle.Secondary)
             );
 
-        await interaction.reply({ embeds: [embed], components: [row] });
+        await interaction.editReply({ embeds: [embed], components: [row] });
 
         const collector = interaction.channel?.createMessageComponentCollector({
             filter: i => i.user.id === interaction.user.id,
@@ -55,30 +58,27 @@ const ShipCommand: Command = {
         });
 
         collector?.on("collect", async (i: ButtonInteraction) => {
-            if (i.customId === "skills") {
+            if (i.customId.startsWith("skills:")) {
                 try {
-                    if (!i.deferred && !i.replied) {
-                        await i.deferReply({ ephemeral: true });
-                    }
+                    await i.deferReply();
 
-                    const data = await getShipSkills(ship.name);
+                    const shipName = i.customId.split(":")[1];
+                    const data = await getShipSkills(shipName);
                     const skills = data.skills;
                     const skillEmbed = new EmbedBuilder()
-                        .setTitle(`${ship.name} 的技能`)
+                        .setTitle(`${shipName} 的技能`)
                         .setColor(0x00ff00);
 
                     skills.forEach(s => {
                         skillEmbed.addFields({ name: s.name, value: s.desc, inline: false });
                     });
 
-                    if (i.deferred || i.replied) {
-                        await i.editReply({ embeds: [skillEmbed] });
-                    } else {
-                        await i.reply({ embeds: [skillEmbed], ephemeral: true });
-                    }
+                    await i.editReply({ embeds: [skillEmbed] });
                 } catch (err) {
                     console.error(err);
-                    await i.reply({ content: "技能資料抓取失敗", ephemeral: true });
+                    if (i.deferred) {
+                        await i.editReply({ content: "技能資料抓取失敗" });
+                    }
                 }
             }
         });
